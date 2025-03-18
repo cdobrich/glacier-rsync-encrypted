@@ -98,7 +98,7 @@ optional arguments:
   -h, --help            show this help message and exit
   --loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}
                         log level (default: INFO)
-  --db db               database file to store sync info (default: glacier.db)
+  --db db               Database file to store sync info (default: glacier.db)
   --vault vault         Glacier vault name (default: None)
   --region region       Glacier region name (default: None)
   --compress COMPRESS   Enable compression. Only zstd is supported (default: False)
@@ -111,6 +111,10 @@ optional arguments:
   --part-size SIZE      Set custom part size for large files (in bytes), for example (4MB): 4194304  
   --desc "Description"  Add description
   --loglevel DEBUG      Set log level
+  
+  --encrypt true        Encrypt your data before sending it to Glacier
+  --encryption-key-file Path to file with encryption key for encrypting uploaded data
+
   
 ```
 
@@ -153,7 +157,7 @@ Which is not POSIX compatible since there is no limit to the filename or full pa
     
 Store your `encryption key` safely - if you lose it, you can't decrypt your backups!
 
-The `backup.db` (or whatever you name it) file keeps track of what has been backed up - don't delete it!
+The `glacier.db` (or whatever you name it) file keeps track of what has been backed up - don't delete it!
 
 #### First-time backup with compression and encryption (manual enter key)
 
@@ -163,7 +167,7 @@ grsync --vault YOUR-VAULT-NAME \
        --compress true \
        --encrypt true \
        --encryption-key "your-base64-encoded-key" \
-       --db /path/to/backup.db \
+       --db /path/to/glacier.db \
        --desc "My description" \
        /path/to/your/folder
 ```
@@ -175,7 +179,7 @@ grsync --vault YOUR-VAULT-NAME \
        --compress true \
        --encrypt true \
        --encryption-key-file "/path/to/key.txt" \
-       --db /path/to/backup.db \
+       --db /path/to/glacier.db \
        --desc "My description" \
        /path/to/your/folder
 ```
@@ -185,7 +189,7 @@ grsync --vault YOUR-VAULT-NAME \
 ```
 grsync --vault YOUR-VAULT-NAME \
        --region YOUR-AWS-REGION \
-       --db /path/to/backup.db \
+       --db /path/to/glacier.db \
        --desc "My description" \
        /path/to/your/folder
 ```
@@ -209,7 +213,7 @@ grsync --vault YOUR-VAULT-NAME \
        --region YOUR-AWS-REGION \
        --encrypt true \
        --encryption-key "your-base64-encoded-key" \
-       --db /path/to/backup.db \
+       --db /path/to/glacier.db \
        /path/to/your/folder
 ```
 
@@ -221,7 +225,7 @@ grsync --vault YOUR-VAULT-NAME \
        --region YOUR-AWS-REGION \
        --encrypt true \
        --encryption-key-file /home/user/.glacier-keys/backup.key \
-       --db /path/to/backup.db \
+       --db /path/to/glacier.db \
        /path/to/your/folder
 ```
        
@@ -230,7 +234,6 @@ This workflow will:
 - Upload new files
 - Re-upload modified files
 - Keep track of all uploads in the database
-
 
   
 ### Development Unit Testing
