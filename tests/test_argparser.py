@@ -1,6 +1,6 @@
 # tests/test_argparser.py
 import pytest
-from glacier_rsync.argparser import ArgParser
+from src.argparser import ArgParser
 from unittest.mock import patch
 import sys
 from cryptography.fernet import Fernet

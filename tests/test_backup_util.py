@@ -1,7 +1,7 @@
 
 # tests/test_backup_util.py
 import pytest
-from glacier_rsync.backup_util import BackupUtil
+from src.backup_util import BackupUtil
 from unittest.mock import patch
 import os
 

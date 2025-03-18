@@ -6,7 +6,7 @@ import pytest
 import os
 from unittest.mock import patch
 from .mocks.mock_glacier import MockGlacierClient
-from glacier_rsync.backup_util import BackupUtil
+from src.backup_util import BackupUtil
 
 
 def test_progress_bars_display(mock_args, temp_dir, capsys):

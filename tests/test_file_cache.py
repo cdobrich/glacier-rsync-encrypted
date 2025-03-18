@@ -1,6 +1,6 @@
 # tests/test_file_cache.py
 import pytest
-from glacier_rsync.file_cache import FileCache
+from src.file_cache import FileCache
 import os
 
 def test_basic_read(sample_files):

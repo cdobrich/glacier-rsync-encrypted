@@ -1,6 +1,6 @@
 # tests/test_encryption.py
 import pytest
-from glacier_rsync.backup_util import BackupUtil
+from src.backup_util import BackupUtil
 from cryptography.fernet import Fernet
 import os
 from unittest.mock import patch

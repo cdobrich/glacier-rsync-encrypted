@@ -2,7 +2,7 @@ import argparse
 import logging
 from cryptography.fernet import Fernet
 from base64 import urlsafe_b64decode, urlsafe_b64encode
-from glacier_rsync.release import __version__
+from src.release import __version__
 
 
 class ArgParser:

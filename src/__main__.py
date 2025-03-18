@@ -4,8 +4,8 @@ import logging
 import signal
 import sys
 
-from glacier_rsync.argparser import ArgParser
-from glacier_rsync.backup_util import BackupUtil
+from src.argparser import ArgParser
+from src.backup_util import BackupUtil
 
 FORCE_STOP_LIMIT = 3
 global stop_request_count

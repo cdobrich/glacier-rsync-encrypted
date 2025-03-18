@@ -8,7 +8,7 @@ import os
 from unittest.mock import patch
 from cryptography.fernet import Fernet
 from .mocks.mock_glacier import MockGlacierClient
-from glacier_rsync.backup_util import BackupUtil
+from src.backup_util import BackupUtil
 
 
 @pytest.mark.integration

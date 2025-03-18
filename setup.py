@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-from glacier_rsync.release import __version__
+from src.release import __version__  # Update this import path
 
 
 def read_file(file_name):
@@ -31,11 +31,12 @@ setup(
     long_description_content_type="text/markdown",
     author='Cagdas Bas',
     author_email='cagdasbs@gmail.com',
-    packages=find_packages("."),
+    package_dir={"": "src"},  # Add this line
+    packages=find_packages("src"),  # Update this line
     include_package_data=True,
     entry_points={
         "console_scripts": [
-            "grsync = glacier_rsync.__main__:main",
+            "grsync = src.__main__:main",  # Update this line
         ]
     },
     install_requires=read_requirements('requirements.txt'),
