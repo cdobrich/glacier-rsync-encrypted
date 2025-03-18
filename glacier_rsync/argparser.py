@@ -1,6 +1,7 @@
 import argparse
 import logging
-
+from cryptography.fernet import Fernet
+from base64 import urlsafe_b64decode, urlsafe_b64encode
 from glacier_rsync.release import __version__
 
 
@@ -77,17 +78,49 @@ class ArgParser:
             help="file or folder to generate archive from"
         )
 
-    @staticmethod
-    def str2bool(v):
-        """Convert string to boolean value"""
-        if isinstance(v, bool):
-            return v
-        if v.lower() in ('yes', 'true', 't', 'y', '1'):
-            return True
-        elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+    def validate_encryption_key(self, key):
+        """
+        Validate encryption key format.
+        A valid Fernet key must be 32 bytes, URL-safe base64-encoded.
+        """
+        if not key:
+            print("Key cannot be empty")
             return False
-        else:
-            raise argparse.ArgumentTypeError('Boolean value expected.')
+
+        try:
+            # First try to initialize Fernet with the key
+            try:
+                fernet = Fernet(key.encode() if isinstance(key, str) else key)
+            except Exception as e:
+                print(f"Invalid Fernet key format: {str(e)}")
+                return False
+
+            # Then verify the key length and encoding
+            try:
+                key_bytes = urlsafe_b64decode(key.encode() if isinstance(key, str) else key)
+                if len(key_bytes) != 32:
+                    print(f"Key must be 32 bytes (decoded), got {len(key_bytes)} bytes")
+                    return False
+            except Exception as e:
+                print(f"Invalid base64 encoding: {str(e)}")
+                return False
+
+            # Finally, test the key with actual encryption/decryption
+            test_data = b"test"
+            try:
+                encrypted = fernet.encrypt(test_data)
+                decrypted = fernet.decrypt(encrypted)
+                if decrypted != test_data:
+                    print("Key validation failed: encryption/decryption test failed")
+                    return False
+            except Exception as e:
+                print(f"Encryption test failed: {str(e)}")
+                return False
+
+            return True
+        except Exception as e:
+            print(f"Key validation failed: {str(e)}")
+            return False
 
     def get_args(self):
         """Parse and validate command line arguments"""
@@ -104,11 +137,36 @@ class ArgParser:
                 self.parser.error(
                     "Cannot specify both --encryption-key and --encryption-key-file"
                 )
+            
+            # Get key from file if specified
             if args.encryption_key_file:
                 try:
                     with open(args.encryption_key_file, 'r') as f:
                         args.encryption_key = f.read().strip()
                 except Exception as e:
                     self.parser.error(f"Could not read encryption key file: {str(e)}")
+            
+            # Validate the encryption key
+            if not self.validate_encryption_key(args.encryption_key):
+                self.parser.error(
+                    "Invalid encryption key format. Key must be a 32-byte "
+                    "url-safe base64-encoded string. Common issues:\n"
+                    "1. Key is not the correct length\n"
+                    "2. Key is not properly base64-encoded\n"
+                    "3. Key is not url-safe base64-encoded\n"
+                    "Use the keygen.py utility to generate a valid key."
+                )
         
         return args
+
+    @staticmethod
+    def str2bool(v):
+        """Convert string to boolean value"""
+        if isinstance(v, bool):
+            return v
+        if v.lower() in ('yes', 'true', 't', 'y', '1'):
+            return True
+        elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+            return False
+        else:
+            raise argparse.ArgumentTypeError('Boolean value expected.')

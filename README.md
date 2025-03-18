@@ -1,8 +1,61 @@
 ### AWS Glacier Rsync Like Utility
-Rsync like utility to back up files and folders to AWS Glacier. Utility can compress files and store on Glacier. Archive
-ids will be stored in an sqlite database.
+Rsync like utility to back up files and folders to AWS Glacier. Utility can compress files and store on Glacier. Archive ids will be stored in an sqlite database.
 
 You have to log in to aws with aws cli and create a glacier vault beforehand.
+
+#### About Encryption
+
+Files are encrypted locally on your own local machine. Only encrypted data is ever sent to AWS Glacier. The encryption key never leaves your system. AWS only sees the encrypted version of your files. 
+
+To verify this yourself, you could:
+- Check AWS Glacier console - the stored files will be encrypted
+
+Without your encryption key, the files in Glacier are unreadable.
+
+##### Encryption Algorithm Details
+
+The program uses the Fernet encryption scheme from the cryptography library, which is built on AES-256 in CBC mode with PKCS7 padding and includes an HMAC with SHA256 for integrity verification.
+
+##### Encryption and Upload Workflow
+
+The process flow is:
+
+```
+Original File
+    ↓
+Encryption (local)
+    ↓
+Optional Compression (local)
+    ↓
+Upload to Glacier (encrypted data only)
+```
+
+##### Encryption Key Security Notes
+
+###### Key requirements
+
+Must be 32 bytes (256 bits) before base64 encoding
+Must be url-safe base64 encoded
+Should be stored securely
+
+###### Key storage best practices:
+
+Create secure key directory:
+
+```
+mkdir -p ~/.glacier-keys
+chmod 700 ~/.glacier-keys
+```
+
+Store key with restricted permissions:
+
+```
+cat your_key > ~/.glacier-keys/backup.key
+chmod 600 ~/.glacier-keys/backup.key
+```
+
+
+### Usage
 
 Run params:
 ```shell
