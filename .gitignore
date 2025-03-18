@@ -135,3 +135,7 @@ TEST*.xml
 
 # Windows OS crap
 Thumbs.db
+
+# Unit test files
+test.db-wal
+test.db-shm
