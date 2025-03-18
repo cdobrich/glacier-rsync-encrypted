@@ -64,3 +64,28 @@ every archive but this means that the data can be recovered only with the same t
 - Currently, there is no way to recover the local database, but you can download the inventory with aws cli and download
   individual files with the help of description. I maybe create a tool to re-create the local db with inventory
   retrieval, but the first issue has to be addressed before.
+  
+# Development
+
+For testing, you need to install `pytest` and `pytest-cov`.
+
+## Unit Tests
+
+### Run all tests
+pytest
+
+### Run specific test file
+pytest tests/test_backup_util.py
+
+### Run with coverage report
+pytest --cov=glacier_rsync tests/
+
+## Test Progress
+
+Argparse: OK
+Backup Util: OK
+Encrpytion: OK
+File Cache: OK
+Integration: FAIL
+Progress Display: FAIL
+
