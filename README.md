@@ -211,7 +211,7 @@ This workflow will:
   
 ### Development Unit Testing
 
-For testing, you need to install `pytest` and `pytest-cov`.
+For testing, you need to install `pytest` and `pytest-cov` and `pytest-timeout`.
 
 #### Run all tests
 ```
