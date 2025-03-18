@@ -3,6 +3,33 @@ Rsync like utility to back up files and folders to AWS Glacier. Utility can comp
 
 You have to log in to aws with aws cli and create a glacier vault beforehand.
 
+#### AWS CLI install
+
+Follow Amazon's guides for installing the AWS-CLI on your system, if you are using Windows or MacOS. For Linux, see instructions below.
+
+
+##### Linux Install
+
+If your Linux system package tool as the specific `awscli` tool available for installation, just use that.
+
+If your Linux system does not offer the package, here is a simple workaround to install the python awscli tool.
+
+To install the AWS CLI on Ubuntu, you can follow these steps:
+
+```
+sudo apt update
+sudo apt install python3 python3-pip
+```
+
+Navigate to the downloaded directory for `glacier-rsync` and create a virtual-python environment, then install the PIP version of the AWS CLI. Example commands:
+
+```
+cd glacier-rsync
+python3 -m venv .venv
+source .venv/bin/activate
+pip install awscli
+```
+
 #### About Encryption
 
 Files are encrypted locally on your own local machine. Only encrypted data is ever sent to AWS Glacier. The encryption key never leaves your system. AWS only sees the encrypted version of your files. 
