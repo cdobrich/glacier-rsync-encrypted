@@ -1,11 +1,11 @@
 ### AWS Glacier Rsync Like Utility
 Rsync like utility to back up files and folders to AWS Glacier. Utility can compress files and store on Glacier. Archive ids will be stored in an sqlite database.
 
-You have to log in to aws with aws cli and create a glacier vault beforehand.
+You have to log in to AWS with `awscli` and create a glacier vault beforehand.
 
 #### AWS CLI install
 
-Follow Amazon's guides for installing the AWS-CLI on your system, if you are using Windows or MacOS. For Linux, see instructions below.
+Follow Amazon's guides for installing the `awscli` on your system, if you are using Windows or MacOS. For Linux, see instructions below.
 
 
 ##### Linux Install
@@ -14,7 +14,7 @@ If your Linux system package tool as the specific `awscli` tool available for in
 
 If your Linux system does not offer the package, here is a simple workaround to install the python awscli tool.
 
-To install the AWS CLI on Ubuntu, you can follow these steps:
+To install the `awscli` on Ubuntu, you can follow these steps:
 
 ```
 sudo apt update
