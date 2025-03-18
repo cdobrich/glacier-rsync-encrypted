@@ -24,6 +24,7 @@ class BackupUtil:
         self.vault = args.vault
         self.region = args.region
 
+
         # Initialize encryption if enabled
         if self.encrypt:
             if not self.encryption_key:

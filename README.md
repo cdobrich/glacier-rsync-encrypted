@@ -25,6 +25,13 @@ optional arguments:
   --part-size PART_SIZE
                         Part size for compression (default: 1048576)
   --desc desc           A description for the archive that will be stored in Amazon Glacier (default: None)
+  
+
+  --compress true       Add compression (requires zstandard package)
+  --part-size SIZE      Set custom part size for large files (in bytes), for example (4MB): 4194304  
+  --desc "Description"  Add description
+  --loglevel DEBUG      Set log level
+  
 ```
 
 If compression is enabled, file will be read and compressed on the fly and uploaded to glacier multipart.
@@ -64,6 +71,90 @@ every archive but this means that the data can be recovered only with the same t
 - Currently, there is no way to recover the local database, but you can download the inventory with aws cli and download
   individual files with the help of description. I maybe create a tool to re-create the local db with inventory
   retrieval, but the first issue has to be addressed before.
+
+### Workflow Usage
+    
+Store your `encryption key` safely - if you lose it, you can't decrypt your backups!
+
+The `backup.db` file keeps track of what has been backed up - don't delete it!
+
+#### First-time backup with compression and encryption (manual enter key)
+
+```
+grsync --vault YOUR-VAULT-NAME \
+       --region YOUR-AWS-REGION \
+       --compress true \
+       --encrypt true \
+       --encryption-key "your-base64-encoded-key" \
+       --db /path/to/backup.db \
+       --desc "My description" \
+       /path/to/your/folder
+```
+#### First-time backup with compression and encryption (using key file)
+
+```
+grsync --vault YOUR-VAULT-NAME \
+       --region YOUR-AWS-REGION \
+       --compress true \
+       --encrypt true \
+       --encryption-key-file "/path/to/key.txt" \
+       --db /path/to/backup.db \
+       --desc "My description" \
+       /path/to/your/folder
+```
+       
+#### First-time backup with without encryption
+
+```
+grsync --vault YOUR-VAULT-NAME \
+       --region YOUR-AWS-REGION \
+       --db /path/to/backup.db \
+       --desc "My description" \
+       /path/to/your/folder
+```
+
+
+#### Subsequent syncs / Rsycing (manual enter key)
+
+ALWAYS use the same:
+
+- Encryption key
+- Database file
+- Glacier Vault name
+- Region
+
+The `--desc` argument is not necessary for syncing after the initial upload.
+
+Use the same parameters as your initial backup.
+
+```
+grsync --vault YOUR-VAULT-NAME \
+       --region YOUR-AWS-REGION \
+       --encrypt true \
+       --encryption-key "your-base64-encoded-key" \
+       --db /path/to/backup.db \
+       /path/to/your/folder
+```
+
+#### Subsequent syncs / Rsycing (using key filey)
+
+
+```
+grsync --vault YOUR-VAULT-NAME \
+       --region YOUR-AWS-REGION \
+       --encrypt true \
+       --encryption-key-file /home/user/.glacier-keys/backup.key \
+       --db /path/to/backup.db \
+       /path/to/your/folder
+```
+       
+This workflow will:
+- Check each file against the database
+- Upload new files
+- Re-upload modified files
+- Keep track of all uploads in the database
+
+
   
 ### Development Unit Testing
 

@@ -54,6 +54,7 @@ class ArgParser:
             metavar="desc",
             help="A description for the archive that will be stored in Amazon Glacier"
         )
+        # Encryption options
         self.parser.add_argument(
             "--encrypt",
             help="Enable encryption",
@@ -62,7 +63,12 @@ class ArgParser:
         )
         self.parser.add_argument(
             "--encryption-key",
-            help="Encryption key (required if --encrypt is True)",
+            help="Encryption key (required if --encrypt is True and --encryption-key-file is not provided)",
+            type=str
+        )
+        self.parser.add_argument(
+            "--encryption-key-file",
+            help="Path to file containing the encryption key",
             type=str
         )
         self.parser.add_argument(
@@ -73,6 +79,7 @@ class ArgParser:
 
     @staticmethod
     def str2bool(v):
+        """Convert string to boolean value"""
         if isinstance(v, bool):
             return v
         if v.lower() in ('yes', 'true', 't', 'y', '1'):
@@ -83,7 +90,25 @@ class ArgParser:
             raise argparse.ArgumentTypeError('Boolean value expected.')
 
     def get_args(self):
+        """Parse and validate command line arguments"""
         args = self.parser.parse_args()
-        if args.encrypt and not args.encryption_key:
-            self.parser.error("--encryption-key is required when --encrypt is True")
+        
+        # Validate encryption options
+        if args.encrypt:
+            if not (args.encryption_key or args.encryption_key_file):
+                self.parser.error(
+                    "Either --encryption-key or --encryption-key-file is required "
+                    "when --encrypt is True"
+                )
+            if args.encryption_key and args.encryption_key_file:
+                self.parser.error(
+                    "Cannot specify both --encryption-key and --encryption-key-file"
+                )
+            if args.encryption_key_file:
+                try:
+                    with open(args.encryption_key_file, 'r') as f:
+                        args.encryption_key = f.read().strip()
+                except Exception as e:
+                    self.parser.error(f"Could not read encryption key file: {str(e)}")
+        
         return args
