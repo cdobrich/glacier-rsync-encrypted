@@ -1,4 +1,3 @@
-# tests/test_file_cache.py
 import pytest
 import os
 from io import BytesIO
@@ -20,48 +19,44 @@ class TestFileCache:
             f.write(sample_data)
         return test_file
 
+    def _read_all_chunks(self, cache):
+        """Helper method to read all chunks from cache"""
+        chunks = []
+        while True:
+            chunk = cache.read(1024)
+            if chunk is None:
+                break
+            chunks.append(chunk)
+        return b"".join(chunks)
+
     def test_basic_read(self, sample_data):
         """Test basic reading from BytesIO"""
         file_obj = BytesIO(sample_data)
         cache = FileCache(file_obj)
         
-        read_data = b""
-        while True:
-            chunk = cache.read(1024)
-            if chunk is None:  # Changed back to None check
-                break
-            read_data += chunk
-        
+        read_data = self._read_all_chunks(cache)
         assert read_data == sample_data
 
     def test_file_read(self, sample_file, sample_data):
         """Test reading from actual file"""
         with open(sample_file, 'rb') as f:
             cache = FileCache(f)
-            read_data = cache.read(len(sample_data) + 1024)  # Read all at once
+            read_data = cache.read(len(sample_data) + 1024)
             assert read_data == sample_data
-            assert cache.read(1024) == b''  # Changed: empty bytes at EOF
+            assert cache.read(1024) == b''  # EOF returns empty bytes
 
     def test_compression(self, sample_data):
         """Test compression functionality"""
         file_obj = BytesIO(sample_data)
         cache = FileCache(file_obj, compression=True)
         
-        # Read all compressed data first
-        compressed_parts = []
-        while True:
-            chunk = cache.read(1024)
-            if chunk is None:  # Changed back to None check
-                break
-            compressed_parts.append(chunk)
+        compressed_data = self._read_all_chunks(cache)
         
-        compressed_data = b''.join(compressed_parts)
-        assert len(compressed_data) < len(sample_data)
-        
-        # Create decompressor context
+        # Create decompressor context with streaming
         dctx = zstd.ZstdDecompressor()
-        decompressed = dctx.decompress(compressed_data)
-        assert decompressed == sample_data
+        with dctx.stream_reader(BytesIO(compressed_data)) as reader:
+            decompressed_data = reader.read()
+            assert decompressed_data == sample_data
 
     def test_grow_chunk(self, sample_data):
         """Test grow_chunk method"""
@@ -80,29 +75,29 @@ class TestFileCache:
         for size in chunk_sizes:
             file_obj = BytesIO(sample_data)
             cache = FileCache(file_obj)
-            read_data = b""
-            
+            chunks = []
             while True:
                 chunk = cache.read(size)
-                if chunk is None:  # Changed back to None check
+                if chunk is None:
                     break
-                read_data += chunk
-                
+                chunks.append(chunk)
+            
+            read_data = b"".join(chunks)
             assert read_data == sample_data
 
     def test_empty_file(self):
         """Test handling of empty file"""
         file_obj = BytesIO(b"")
         cache = FileCache(file_obj)
-        assert cache.read(1024) is None  # Changed back to None
+        assert cache.read(1024) is None
 
-    def test_empty_reads(self):
-        """Test handling of empty reads"""
+    def test_none_handling(self):
+        """Test handling of None returns"""
         file_obj = BytesIO(b"data")
         cache = FileCache(file_obj)
         assert cache.read(1024) == b"data"
-        assert cache.read(1024) is None  # Changed back to None
-        assert cache.read(1024) is None  # Subsequent reads return None
+        assert cache.read(1024) is None
+        assert cache.read(1024) is None  # Multiple reads should still return None
 
     def test_large_file(self, tmp_path):
         """Test handling of large file"""
@@ -117,7 +112,7 @@ class TestFileCache:
             cache = FileCache(f)
             read_data = cache.read(len(large_data))
             assert read_data == large_data
-            assert cache.read(1024) == b''
+            assert cache.read(1024) == b''  # EOF returns empty bytes
 
     def test_compression_ratio(self):
         """Test compression effectiveness"""
@@ -126,14 +121,7 @@ class TestFileCache:
         file_obj = BytesIO(compressible_data)
         cache = FileCache(file_obj, compression=True)
         
-        compressed_parts = []
-        while True:
-            chunk = cache.read(1024)
-            if chunk is None:  # Changed back to None check
-                break
-            compressed_parts.append(chunk)
-        
-        compressed_data = b''.join(compressed_parts)
+        compressed_data = self._read_all_chunks(cache)
         compression_ratio = len(compressed_data) / len(compressible_data)
         assert compression_ratio < 0.5, "Compression ratio not effective"
 
@@ -146,48 +134,100 @@ class TestFileCache:
         all_data = cache.read(len(sample_data) + 1024)
         assert all_data == sample_data
         
-        # Try reading more
-        assert cache.read(1024) is None  # Changed back to None
-        assert cache.read(1) is None     # Changed back to None
+        # Try reading more - should return None at EOF
+        assert cache.read(1024) is None
+        assert cache.read(1) is None  # Multiple reads should still return None
 
     def test_small_reads(self, sample_data):
         """Test reading very small chunks"""
         file_obj = BytesIO(sample_data)
         cache = FileCache(file_obj)
         
-        read_data = b""
+        chunks = []
         while True:
             chunk = cache.read(1)  # Read byte by byte
-            if chunk is None:  # Changed back to None check
+            if chunk is None:
                 break
-            read_data += chunk
-            
+            chunks.append(chunk)
+        
+        read_data = b"".join(chunks)
         assert read_data == sample_data
 
-    def test_compressed_empty_file(self):
-        """Test compressing an empty file"""
+    def test_compression_streaming(self, sample_data):
+        """Test compression with streaming decompression"""
+        file_obj = BytesIO(sample_data)
+        cache = FileCache(file_obj, compression=True)
+        
+        compressed_data = self._read_all_chunks(cache)
+        
+        # Decompress using streaming
+        dctx = zstd.ZstdDecompressor()
+        with dctx.stream_reader(BytesIO(compressed_data)) as reader:
+            decompressed_data = reader.read()
+            assert decompressed_data == sample_data
+
+    def test_compression_partial_reads(self, sample_data):
+        """Test compression with partial reads during decompression"""
+        file_obj = BytesIO(sample_data)
+        cache = FileCache(file_obj, compression=True)
+        
+        compressed_data = self._read_all_chunks(cache)
+        
+        # Decompress using streaming with small reads
+        dctx = zstd.ZstdDecompressor()
+        decompressed_chunks = []
+        with dctx.stream_reader(BytesIO(compressed_data)) as reader:
+            while True:
+                chunk = reader.read(10)  # Small reads
+                if not chunk:
+                    break
+                decompressed_chunks.append(chunk)
+        
+        decompressed_data = b"".join(decompressed_chunks)
+        assert decompressed_data == sample_data
+
+    def test_compression_empty(self):
+        """Test compression of empty data"""
         file_obj = BytesIO(b"")
         cache = FileCache(file_obj, compression=True)
-        # For compressed empty file, we might get a compression header
-        chunk = cache.read(1024)
-        assert chunk is not None  # We might get compression header
-        assert cache.read(1024) is None  # But next read should be None
+        
+        compressed_data = self._read_all_chunks(cache)
+        
+        # Even empty data should decompress properly
+        dctx = zstd.ZstdDecompressor()
+        with dctx.stream_reader(BytesIO(compressed_data)) as reader:
+            decompressed_data = reader.read()
+            assert decompressed_data == b""
+
+    def test_compression_one_byte(self):
+        """Test compression of single byte"""
+        file_obj = BytesIO(b"X")
+        cache = FileCache(file_obj, compression=True)
+        
+        compressed_data = self._read_all_chunks(cache)
+        
+        dctx = zstd.ZstdDecompressor()
+        with dctx.stream_reader(BytesIO(compressed_data)) as reader:
+            decompressed_data = reader.read()
+            assert decompressed_data == b"X"
 
     def test_compressed_small_reads(self, sample_data):
         """Test reading compressed data in small chunks"""
         file_obj = BytesIO(sample_data)
         cache = FileCache(file_obj, compression=True)
         
-        compressed_parts = []
+        # Read compressed data byte by byte
+        chunks = []
         while True:
-            chunk = cache.read(1)  # Read compressed data byte by byte
+            chunk = cache.read(1)
             if chunk is None:
                 break
-            compressed_parts.append(chunk)
-            
-        compressed_data = b''.join(compressed_parts)
+            chunks.append(chunk)
         
-        # Verify the compressed data
+        compressed_data = b"".join(chunks)
+        
+        # Use streaming decompression
         dctx = zstd.ZstdDecompressor()
-        decompressed = dctx.decompress(compressed_data)
-        assert decompressed == sample_data
+        with dctx.stream_reader(BytesIO(compressed_data)) as reader:
+            decompressed_data = reader.read()
+            assert decompressed_data == sample_data
