@@ -132,9 +132,9 @@ CREATE TABLE
 );
 ```
 
-### Do not lose your database
+### Keep your Database! Do NOT lose your Database!
 
-Currently, there is no way to rebuild it from aws inventory.
+Currently, there is no way to rebuild it from AWS inventory.
 
 #### Known Issues
 
@@ -144,19 +144,16 @@ Currently, there is no way to rebuild it from aws inventory.
 grsync|abs_file_path|size|mtime|user_desc
 ```
 
-Which is not posix compatible since there is no limit to the filename or full path. I can put a metadata in front of
-every archive but this means that the data can be recovered only with the same tool
+Which is not POSIX compatible since there is no limit to the filename or full path. I can put a metadata in front of every archive but this means that the data can be recovered only with the same tool.
 
 - If the absolute file path changes, grsync will treat it as a different file and re-upload
-- Currently, there is no way to recover the local database, but you can download the inventory with aws cli and download
-  individual files with the help of description. I maybe create a tool to re-create the local db with inventory
-  retrieval, but the first issue has to be addressed before.
+- Currently, there is no way to recover the local database, but you can download the inventory with `awscli` and download individual files with the help of description. I maybe create a tool to re-create the local db with inventory retrieval, but the first issue has to be addressed before.
 
 ### Workflow Usage
     
 Store your `encryption key` safely - if you lose it, you can't decrypt your backups!
 
-The `backup.db` file keeps track of what has been backed up - don't delete it!
+The `backup.db` (or whatever you name it) file keeps track of what has been backed up - don't delete it!
 
 #### First-time backup with compression and encryption (manual enter key)
 
