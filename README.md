@@ -70,11 +70,18 @@ every archive but this means that the data can be recovered only with the same t
 For testing, you need to install `pytest` and `pytest-cov`.
 
 #### Run all tests
-  pytest
+```
+pytest
+```
 
 #### Run specific test file
-  pytest tests/test_backup_util.py
+
+```
+pytest tests/test_backup_util.py
+```
 
 #### Run with coverage report
 
-  pytest --cov=glacier_rsync tests/
+```
+pytest --cov=glacier_rsync tests/
+```
