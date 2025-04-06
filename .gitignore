@@ -5,6 +5,9 @@
 # C extensions
 *.so
 
+# Database / SQLite files
+*.db
+
 # Distribution / packaging
 .Python
 build/

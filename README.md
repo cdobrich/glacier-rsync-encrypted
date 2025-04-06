@@ -25,11 +25,57 @@ Navigate to the downloaded directory for `glacier-rsync` and create a virtual-py
 
 ```
 cd glacier-rsync
-python3 -m venv .venv
-source .venv/bin/activate
-pip install .
-export PYTHONPATH="$PYTHONPATH:."
+bash ./install.sh
 ```
+
+If the above step works correctly, now you can activate the installed local virtual environment:
+
+```
+source .venv/bin/activate
+```
+
+Now the execution python program `grsync` will be available in your shell.
+
+You can stop using this local virtual environment by typing the command `deactive`.
+
+### Create a VAULT Encryption Key
+
+The glacier-rsync-encrypted program provides a vault encrpytion key-generator utility. This is an example:
+
+```
+python src/keygen.sh > ../MY-VAULT-ENCRYPTION.key
+```
+
+You would use this output file in your grsync commands.
+
+
+### AWS Vault User Setup
+
+If in doubt, refer to official AWS documentation. This is a simplified Step-by-step guide on how to do this:
+
+1. Sign in to the AWS Management Console: Go to [aws.amazon.com](https://aws.amazon.com) and log in with your AWS account credentials.
+2. Navigate to the IAM Console: In the AWS Management Console search bar, type "IAM" and select IAM from the services list.
+3.  Go to Users: In the left-hand navigation pane of the IAM console, click on Users.   
+4. Add a New User: Click the Add user button.
+5. Enter User Details:
+    1. User name: Choose a descriptive name for the user (e.g., glacier-backup-user).
+    2. Click **Next**.
+6. Set Permissions: You have a few options for setting permissions:
+    1. **Add user to group**: If you have an existing IAM group with the necessary Glacier permissions, you can add the user to that group.
+    2. **Copy permissions from existing user**: If you have another user with the required permissions, you can copy them.
+    3. **Attach existing policies directly**: This is the most common method. Click Attach existing policies directly. In the search bar, type "Glacier" and select the AWS managed policy `AWSGlacierFullAccess` for testing purposes. For production environments, it is highly recommended to create a custom policy with only the necessary permissions for your grsync operations (e.g., `glacier:InitiateMultipartUpload`, `glacier:UploadMultipartPart`, `glacier:CompleteMultipartUpload)`.
+    4. Click **Next**.
+7. Review: Review the user details and permissions summary. Click Create user.
+8. Retrieve Access Keys: This is the crucial step! After the user is created, you will see the Access key ID and Secret access key.
+    1. **Important**: You can only view or download the secret access key at this moment. After you click Close, you will not be able to retrieve it again.
+    2. Click **Download .csv file** to save the keys to a file on your computer. Store this file in a secure location.
+9. **Use the Access Keys**: Now you have your AWS Access Key ID and Secret Access Key. You can configure your AWS credentials for `grsync` using one of the methods mentioned in my previous response:
+
+    1. **Configure AWS CLI** This is the recommended method for local development. Run `aws configure` in your terminal and enter the Access Key ID, Secret Access Key, your desired AWS Region, and a default output format (e.g., `json`).
+    2. **Set Environment Variables**: You can set the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables in your terminal before running grsync.
+    
+
+
 
 #### About Encryption
 
