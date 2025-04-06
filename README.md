@@ -27,7 +27,8 @@ Navigate to the downloaded directory for `glacier-rsync` and create a virtual-py
 cd glacier-rsync
 python3 -m venv .venv
 source .venv/bin/activate
-pip install awscli
+pip install .
+export PYTHONPATH="$PYTHONPATH:."
 ```
 
 #### About Encryption

@@ -31,12 +31,12 @@ setup(
     long_description_content_type="text/markdown",
     author='Cagdas Bas',
     author_email='cagdasbs@gmail.com',
-    package_dir={"": "src"},  # Add this line
-    packages=find_packages("src"),  # Update this line
+    package_dir={"": "src"},  
+    packages=find_packages("src"),  
     include_package_data=True,
     entry_points={
         "console_scripts": [
-            "grsync = src.__main__:main",  # Update this line
+            "grsync = src.__main__:main",  
         ]
     },
     install_requires=read_requirements('requirements.txt'),
