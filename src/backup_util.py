@@ -6,6 +6,7 @@ import sys
 import boto3
 import binascii
 import hashlib
+import time  # For potential retry backoff
 
 from botocore.exceptions import ClientError
 from cryptography.fernet import Fernet
@@ -23,6 +24,7 @@ class BackupUtil:
         self.encryption_key = args.encryption_key
         self.vault = args.vault
         self.region = args.region
+        self.current_file = None  # To track the currently processed file for signal handling
 
         # Initialize encryption if enabled
         if self.encrypt:
@@ -52,10 +54,11 @@ class BackupUtil:
         try:
             cur.execute(
                 "create table if not exists sync_history (id integer primary key, path text, file_size integer, "
-                "mtime float, archive_id text, location text, checksum text, compression text, timestamp text);")
+                "mtime float, archive_id text, location text, checksum text, compression text, timestamp text);"
+            )
             self.conn.commit()
         except sqlite3.OperationalError as e:
-            logging.error(f"DB error: {str(e)}")
+            logging.error(f"DB error during table creation: {str(e)}")
             sys.exit(2)
         finally:
             cur.close()
@@ -71,8 +74,10 @@ class BackupUtil:
         """
         Close database connection
         """
-        self.conn.commit()
-        self.conn.close()
+        if hasattr(self, 'conn') and self.conn:
+            self.conn.commit()
+            self.conn.close()
+            logging.info("Closed glacier rsync db connection.")
 
     def backup(self):
         """Perform backup operation"""
@@ -84,10 +89,11 @@ class BackupUtil:
         else:
             file_list.append(os.path.abspath(self.src))
 
-        logging.info(f"number of files to backup: {len(file_list)}")
-        
+        logging.info(f"Number of files to backup: {len(file_list)}")
+
         with tqdm(total=len(file_list), desc="Processing files") as pbar:
             for file_index, file in enumerate(file_list):
+                self.current_file = file  # Update the currently processed file
                 if not self.continue_running:
                     logging.info("Exiting early...")
                     break
@@ -95,22 +101,23 @@ class BackupUtil:
                 is_backed_up, file_size, mtime = self._check_if_backed_up(file)
                 if not is_backed_up:
                     logging.info(f"Processing {file}")
-                    
+
                     part_size = self.decide_part_size(file_size)
                     file_object, compressed_file_object = self._compress(file)
-                    
+
                     desc = f'grsync|{file}|{file_size}|{mtime}|{self.desc}'
                     archive = self._backup(compressed_file_object, desc, part_size)
-                    
+
                     if archive is not None:
-                        logging.info(f"{file} is backed up successfully")
+                        logging.info(f"{file} is backed up successfully. Archive ID: {archive.get('archiveId', 'N/A')}")
                         self._mark_backed_up(file, archive)
                     else:
                         logging.error(f"Error backing up {file}")
-                
+
                 pbar.update(1)
 
         logging.info("All files are processed.")
+        self.current_file = None # Reset current file after completion
 
 
     def _check_if_backed_up(self, path):
@@ -126,12 +133,12 @@ class BackupUtil:
                 "SELECT * FROM sync_history WHERE path=? AND file_size=? AND mtime=?",
                 (path, file_size, mtime))
             rows = cur.fetchall()
+            return len(rows) > 0, file_size, mtime
         except sqlite3.OperationalError as e:
-            logging.error(f"DB error. Cannot check backup status: {str(e)}")
+            logging.error(f"DB error during backup status check for '{path}': {str(e)}")
             sys.exit(3)
         finally:
             cur.close()
-        return len(rows) > 0, file_size, mtime
 
     def _compress(self, file):
         """
@@ -139,26 +146,49 @@ class BackupUtil:
         :param file: Input file path
         :return: Tuple(file_object, compressed_file_object)
         """
-        file_object = open(file, 'rb')
-        
+        try:
+            file_object = open(file, 'rb')
+        except FileNotFoundError as e:
+            logging.error(f"Error opening file '{file}' for compression/encryption: {e}")
+            return None, None
+        except PermissionError as e:
+            logging.error(f"Permission error accessing file '{file}': {e}")
+            return None, None
+
         if self.encrypt:
-            # Read and encrypt the entire file
-            content = file_object.read()
-            encrypted_data = self.fernet.encrypt(content)
-            file_object.close()
-            file_object = BytesIO(encrypted_data)
+            try:
+                content = file_object.read()
+                encrypted_data = self.fernet.encrypt(content)
+                file_object.close()
+                file_object = BytesIO(encrypted_data)
+            except Exception as e:
+                logging.error(f"Error during encryption of '{file}': {e}")
+                if file_object and not file_object.closed:
+                    file_object.close()
+                return None, None
 
         compression = False
+        compressed_file_object = file_object  # Initialize in case compression is not enabled
         if self.compress:
             try:
                 import zstandard as zstd
                 compression = True
+                cctx = zstd.ZstdCompressor()
+                compressed_data = cctx.compress(file_object.read())
+                compressed_file_object = BytesIO(compressed_data)
+                file_object.close() # Close the original file object after compression
+                file_object = compressed_file_object # Use the compressed object for upload
             except ImportError:
-                msg = "cannot import zstd. Please install `zstandard' package!"
+                msg = "Cannot import zstd. Please install `zstandard` package!"
                 logging.error(msg)
                 raise ValueError(msg)
+            except Exception as e:
+                logging.error(f"Error during compression of '{file}': {e}")
+                if file_object and not file_object.closed:
+                    file_object.close()
+                return None, None
 
-        return file_object, BytesIO(file_object.read()) if compression else file_object
+        return file_object, compressed_file_object
 
     def _backup(self, src_file_object, description, part_size):
         """
@@ -171,6 +201,7 @@ class BackupUtil:
         if src_file_object is None:
             return None
 
+        upload_id = None
         try:
             response = self.glacier.initiate_multipart_upload(
                 vaultName=self.vault,
@@ -181,7 +212,7 @@ class BackupUtil:
 
             byte_pos = 0
             list_of_checksums = []
-            
+
             # Get total file size for progress bar
             src_file_object.seek(0, 2)
             total_size = src_file_object.tell()
@@ -192,19 +223,35 @@ class BackupUtil:
                     chunk = src_file_object.read(part_size)
                     if not chunk:
                         break
-                    
+
                     range_header = f"bytes {byte_pos}-{byte_pos + len(chunk) - 1}/*"
                     byte_pos += len(chunk)
-                    
-                    response = self.glacier.upload_multipart_part(
-                        vaultName=self.vault,
-                        uploadId=upload_id,
-                        range=range_header,
-                        body=chunk,
-                    )
-                    checksum = response["checksum"]
-                    list_of_checksums.append(checksum)
-                    pbar.update(len(chunk))
+
+                    upload_part_retries = 3  # Example retry count
+                    for retry in range(upload_part_retries):
+                        try:
+                            response = self.glacier.upload_multipart_part(
+                                vaultName=self.vault,
+                                uploadId=upload_id,
+                                range=range_header,
+                                body=chunk,
+                            )
+                            checksum = response["checksum"]
+                            list_of_checksums.append(checksum)
+                            pbar.update(len(chunk))
+                            break  # Upload successful, break retry loop
+                        except ClientError as e:
+                            logging.warning(f"Glacier ClientError during part upload (retry {retry + 1}/{upload_part_retries}): {e}")
+                            if retry < upload_part_retries - 1:
+                                time.sleep(2 ** retry)  # Exponential backoff
+                            else:
+                                logging.error(f"Failed to upload part after {upload_part_retries} retries. Aborting upload.")
+                                self._abort_multipart_upload(upload_id)
+                                return None
+                        except Exception as e:
+                            logging.error(f"Unexpected error during part upload: {e}")
+                            self._abort_multipart_upload(upload_id)
+                            return None
 
             total_tree_hash = self.calculate_total_tree_hash(list_of_checksums)
             archive = self.glacier.complete_multipart_upload(
@@ -213,12 +260,33 @@ class BackupUtil:
                 archiveSize=str(byte_pos),
                 checksum=total_tree_hash,
             )
-            
-        except ClientError as e:
-            logging.error(e)
-            return None
+            return archive
 
-        return archive
+        except ClientError as e:
+            logging.error(f"Glacier ClientError during multipart upload for '{self.current_file}': {e}")
+            if upload_id:
+                self._abort_multipart_upload(upload_id)
+        except Exception as e:
+            logging.error(f"Unexpected error during multipart upload for '{self.current_file}': {e}")
+            if upload_id:
+                self._abort_multipart_upload(upload_id)
+        return None
+
+    def _abort_multipart_upload(self, upload_id):
+        """
+        Abort a multipart upload in Glacier.
+        :param upload_id: The ID of the multipart upload to abort.
+        """
+        try:
+            self.glacier.abort_multipart_upload(
+                vaultName=self.vault,
+                uploadId=upload_id
+            )
+            logging.info(f"Aborted incomplete multipart upload with ID: {upload_id}")
+        except ClientError as e:
+            logging.error(f"Error aborting multipart upload with ID '{upload_id}': {e}")
+        except Exception as e:
+            logging.error(f"Unexpected error while aborting multipart upload '{upload_id}': {e}")
 
     def _mark_backed_up(self, path, archive):
         """
@@ -227,7 +295,7 @@ class BackupUtil:
         :param archive: Archive information from Glacier
         """
         if archive is None:
-            logging.error(f"{path} cannot be backed up")
+            logging.error(f"{path} cannot be marked as backed up because the archive information is missing.")
             return
 
         archive_id = archive['archiveId']
@@ -248,9 +316,11 @@ class BackupUtil:
                 (path, file_size, mtime, archive_id, location, checksum, compression, timestamp)
             )
             self.conn.commit()
+            logging.debug(f"Marked '{path}' as backed up in the database. Archive ID: {archive_id}")
         except sqlite3.OperationalError as e:
-            logging.error(f"DB error. Cannot mark the file as backed up: {str(e)}")
-            sys.exit(1)
+            logging.error(f"DB error. Cannot mark '{path}' as backed up: {e}")
+            # Decide if you want to raise an exception or continue
+            # sys.exit(1) # You might want to handle this differently
         finally:
             cur.close()
 
@@ -279,7 +349,7 @@ class BackupUtil:
         tree = checksums[:]
         while len(tree) > 1:
             parent = []
-            for i in range(0, len(tree), 2):
+            for i in range(0, len( tree), 2):
                 if i < len(tree) - 1:
                     part1 = binascii.unhexlify(tree[i])
                     part2 = binascii.unhexlify(tree[i + 1])
@@ -304,8 +374,16 @@ class BackupUtil:
     @staticmethod
     def __get_stats(path):
         """
-        Get the stats of given file
-        :param path: File path
-        :return: Tuple(file_size, modified_time)
+        Get file size and modification time
+        :param path: Path to the file
+        :return: Tuple(file_size, mtime)
         """
-        return os.path.getsize(path), os.path.getmtime(path)
+        try:
+            stat_info = os.stat(path)
+            return stat_info.st_size, stat_info.st_mtime
+        except FileNotFoundError as e:
+            logging.error(f"File not found: {path} - {e}")
+            return 0, 0
+        except OSError as e:
+            logging.error(f"OS error getting stats for {path}: {e}")
+            return 0, 0

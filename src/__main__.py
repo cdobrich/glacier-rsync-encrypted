@@ -1,3 +1,4 @@
+# In src/__main__.py:
 #!/usr/bin/env python
 
 import logging
@@ -28,12 +29,13 @@ def main():
         global stop_request_count
         stop_request_count += 1
         if stop_request_count < FORCE_STOP_LIMIT:
-            logging.info(f"Stop is requested, grsync will exit when current upload is complete.")
+            logging.info(f"Stop is requested, grsync will exit when current upload of '{backup_util.current_file if hasattr(backup_util, 'current_file') else 'unknown file'}' is complete.")
             logging.info(f"Press ctrl+c {FORCE_STOP_LIMIT} times for force exit.")
             backup_util.stop()
         else:
-            logging.info(f"Force stop is requested. Exiting...")
+            logging.info(f"Force stop is requested. Attempting to close resources...")
             backup_util.close()
+            logging.info(f"Exiting...")
             sys.exit(0)
 
     signal.signal(signal.SIGINT, signal_handler)

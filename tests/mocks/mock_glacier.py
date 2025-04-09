@@ -109,7 +109,7 @@ class MockGlacierClient:
         """
         if uploadId not in self.uploads:
             raise Exception("Invalid upload ID")
-            
+
         # Create mock archive
         archive_id = f"archive-{uploadId}"
         self.archives[archive_id] = {
@@ -118,15 +118,24 @@ class MockGlacierClient:
             'checksum': checksum,
             'parts': self.parts.get(uploadId, [])
         }
-        
+
         # Store the final state before cleanup
         final_parts = self.parts[uploadId]
-        
+
         # Clean up upload data
         del self.uploads[uploadId]
         del self.parts[uploadId]
-            
-        return MockGlacierResponse(archive_id)
+
+        return {'archiveId': archive_id,
+                'location': f'/test-vault/archives/{archive_id}',
+                'checksum': 'sha256-test-checksum',
+                'ResponseMetadata': {
+                    'HTTPHeaders': {
+                        'date': '2024-03-17T12:00:00Z'
+                    },
+                    'HTTPStatusCode': 200,
+                    'RequestId': 'test-request-id'
+                }}
 
     def abort_multipart_upload(self, vaultName, uploadId):
         """
