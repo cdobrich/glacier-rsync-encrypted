@@ -216,6 +216,7 @@ grsync --vault YOUR-VAULT-NAME \
        --encryption-key "your-base64-encoded-key" \
        --db /path/to/glacier.db \
        --desc "My description" \
+       --loglevel INFO \
        /path/to/your/folder
 ```
 #### First-time backup with compression and encryption (using key file)
@@ -228,6 +229,7 @@ grsync --vault YOUR-VAULT-NAME \
        --encryption-key-file "/path/to/key.txt" \
        --db /path/to/glacier.db \
        --desc "My description" \
+       --loglevel WARNING \
        /path/to/your/folder
 ```
        
@@ -238,6 +240,7 @@ grsync --vault YOUR-VAULT-NAME \
        --region YOUR-AWS-REGION \
        --db /path/to/glacier.db \
        --desc "My description" \
+       --loglevel ERROR \
        /path/to/your/folder
 ```
 
@@ -261,6 +264,7 @@ grsync --vault YOUR-VAULT-NAME \
        --encrypt true \
        --encryption-key "your-base64-encoded-key" \
        --db /path/to/glacier.db \
+       --loglevel DEBUG \
        /path/to/your/folder
 ```
 
@@ -273,9 +277,10 @@ grsync --vault YOUR-VAULT-NAME \
        --encrypt true \
        --encryption-key-file /home/user/.glacier-keys/backup.key \
        --db /path/to/glacier.db \
+       --loglevel CRITICAL \
        /path/to/your/folder
 ```
-       
+
 This workflow will:
 - Check each file against the database
 - Upload new files
