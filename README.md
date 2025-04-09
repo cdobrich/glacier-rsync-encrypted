@@ -1,5 +1,5 @@
 ### AWS Glacier Rsync Like Utility
-Rsync like utility to back up files and folders to AWS Glacier. Utility can compress files and store on Glacier. Archive ids will be stored in an sqlite database.
+Rsync like utility to back up files and folders to AWS Glacier, including encryption. This utility can compress files and store on Amazon S3 Glacier. Archive ids will be stored in an sqlite database.
 
 You have to log in to AWS with `awscli` and create a glacier vault beforehand.
 
@@ -21,10 +21,10 @@ sudo apt update
 sudo apt install python3 python3-pip
 ```
 
-Navigate to the downloaded directory for `glacier-rsync` and create a virtual-python environment, then install the PIP version of the AWS CLI. Example commands:
+Navigate to the downloaded directory for `glacier-rsync-encrypted` and create a virtual-python environment, then install the PIP version of the AWS CLI. Example commands:
 
 ```
-cd glacier-rsync
+cd glacier-rsync-encrypted
 bash ./install.sh
 ```
 
@@ -285,7 +285,13 @@ This workflow will:
   
 ### Development Unit Testing
 
-For testing, you need to install `pytest` and `pytest-cov` and `pytest-timeout`.
+The project has several pre-written unit tests. To run them, first install the necessary dependencies found in the `requirements-testing.txt` file.
+
+This can be done via the `pip` command (either in a local virtual environment or at a system-wide level):
+
+```
+pip install -r requirements-testing.txt
+```
 
 #### Run all tests
 ```

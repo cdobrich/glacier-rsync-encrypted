@@ -1,4 +1,4 @@
-# !/usr/bin/env python
+#!/usr/bin/env python
 
 import logging
 import signal
@@ -14,9 +14,11 @@ global stop_request_count
 def main():
     args = ArgParser().get_args()
     logging.getLogger(__name__)
+    log_level_str = args.log_level.upper()
+    log_level = getattr(logging, log_level_str, logging.INFO) # Explicitly default to INFO
     logging.basicConfig(
         format="%(asctime)s - %(module)s.%(funcName)s:%(lineno)d - %(levelname)s - %(message)s",
-        level=getattr(logging, args.log_level, None))
+        level=log_level)
 
     global stop_request_count
     stop_request_count = 0
