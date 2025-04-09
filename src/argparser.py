@@ -77,6 +77,18 @@ class ArgParser:
             metavar="src",
             help="file or folder to generate archive from"
         )
+        self.parser.add_argument(
+            "--log-level",
+            choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+            default='INFO',
+            help="Set the logging level (default: INFO).\n"
+                 "DEBUG: Detailed information, useful for debugging.\n"
+                 "INFO: General information about the program's execution.\n"
+                 "WARNING: Indicates potential issues that are not critical.\n"
+                 "ERROR: Indicates significant problems that might prevent some functionality.\n"
+                 "CRITICAL: Indicates severe errors that might lead to program termination."
+        )
+
 
     def validate_encryption_key(self, key):
         """
