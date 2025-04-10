@@ -102,7 +102,7 @@ class BackupUtil:
                 if not is_backed_up:
                     logging.info(f"Processing {file}")
 
-                    part_size = self.decide_part_size(file_size)
+                    part_size = self.part_size  # <--- ✅ FIXED LINE
                     file_object, compressed_file_object = self._compress(file)
 
                     desc = f'grsync|{file}|{file_size}|{mtime}|{self.desc}'
@@ -120,13 +120,60 @@ class BackupUtil:
         self.current_file = None # Reset current file after completion
 
 
+    def list_incomplete_uploads(self):
+        """
+        Lists all in-progress multipart uploads for the configured vault.
+        """
+        try:
+            response = self.glacier.list_multipart_uploads(vaultName=self.vault)
+            uploads = response.get('UploadsList', [])
+            if uploads:
+                logging.info(f"Found {len(uploads)} incomplete multipart uploads for vault '{self.vault}':")
+                for upload in uploads:
+                    upload_id = upload.get('UploadId')
+                    archive_description = upload.get('ArchiveDescription', 'N/A')
+                    creation_date = upload.get('CreationDate', 'N/A')
+                    part_size = upload.get('PartSize', 'N/A')
+                    logging.info(f"  - Upload ID: {upload_id}")
+                    logging.info(f"    Description: {archive_description}")
+                    logging.info(f"    Initiated on: {creation_date}")
+                    logging.info(f"    Part Size: {part_size}")
+            else:
+                logging.info(f"No incomplete multipart uploads found for vault '{self.vault}'.")
+            return uploads
+        except ClientError as e:
+            logging.error(f"Error listing multipart uploads for vault '{self.vault}': {e}")
+            return []
+        except Exception as e:
+            logging.error(f"Unexpected error listing multipart uploads: {e}")
+            return []
+
+    def abort_multipart_upload(self, upload_id):
+        """
+        Abort a specific multipart upload in Glacier.
+        :param upload_id: The ID of the multipart upload to abort.
+        """
+        try:
+            self.glacier.abort_multipart_upload(
+                vaultName=self.vault,
+                uploadId=upload_id
+            )
+            logging.info(f"Successfully aborted multipart upload with ID: {upload_id}")
+            return True
+        except ClientError as e:
+            logging.error(f"Error aborting multipart upload with ID '{upload_id}': {e}")
+            return False
+        except Exception as e:
+            logging.error(f"Unexpected error while aborting multipart upload '{upload_id}': {e}")
+            return False
+
     def _check_if_backed_up(self, path):
         """
         Check if file is already backed up
         :param path: full file path
         :return: Tuple(is_backed_up, file_size, mtime)
         """
-        file_size, mtime = self.__get_stats(path)
+        file_size, mtime = self._get_stats(path)
         cur = self.conn.cursor()
         try:
             cur.execute(
@@ -139,6 +186,23 @@ class BackupUtil:
             sys.exit(3)
         finally:
             cur.close()
+
+    @staticmethod
+    def _get_stats(path):  # Changed __get_stats to _get_stats
+        """
+        Get file size and modification time
+        :param path: Path to the file
+        :return: Tuple(file_size, mtime)
+        """
+        try:
+            stat_info = os.stat(path)
+            return stat_info.st_size, stat_info.st_mtime
+        except FileNotFoundError as e:
+            logging.error(f"File not found: {path} - {e}")
+            return 0, 0
+        except OSError as e:
+            logging.error(f"OS error getting stats for {path}: {e}")
+            return 0, 0
 
     def _compress(self, file):
         """
@@ -306,7 +370,7 @@ class BackupUtil:
         if self.compress:
             compression += "+zstd"
 
-        file_size, mtime = self.__get_stats(path)
+        file_size, mtime = self._get_stats(path)
         cur = self.conn.cursor()
         try:
             cur.execute(
@@ -324,66 +388,28 @@ class BackupUtil:
         finally:
             cur.close()
 
-    def calculate_tree_hash(self, part, part_size):
+    def calculate_total_tree_hash(self, hex_checksums):
         """
-        Calculate hash of single part
-        :param part: Data chunk
-        :param part_size: Size of the chunk
-        :return: Calculated hash
+        Calculate the final tree hash from individual part checksums (hex strings),
+        as required by AWS Glacier multipart upload completion.
         """
-        checksums = []
-        upper_bound = min(len(part), part_size)
-        step = 1024 * 1024  # 1 MB
-        for chunk_pos in range(0, upper_bound, step):
-            chunk = part[chunk_pos: chunk_pos + step]
-            checksums.append(hashlib.sha256(chunk).hexdigest())
-        return self.calculate_total_tree_hash(checksums)
+        import binascii
+        import hashlib
 
-    @staticmethod
-    def calculate_total_tree_hash(checksums):
-        """
-        Calculate hash of a list
-        :param checksums: List of checksums
-        :return: Total calculated hash
-        """
-        tree = checksums[:]
-        while len(tree) > 1:
-            parent = []
-            for i in range(0, len( tree), 2):
-                if i < len(tree) - 1:
-                    part1 = binascii.unhexlify(tree[i])
-                    part2 = binascii.unhexlify(tree[i + 1])
-                    parent.append(hashlib.sha256(part1 + part2).hexdigest())
+        # Convert hex strings to binary
+        binary_hashes = [binascii.unhexlify(h) for h in hex_checksums]
+
+        while len(binary_hashes) > 1:
+            new_level = []
+            for i in range(0, len(binary_hashes), 2):
+                if i + 1 < len(binary_hashes):
+                    combined = binary_hashes[i] + binary_hashes[i + 1]
                 else:
-                    parent.append(tree[i])
-            tree = parent
-        return tree[0]
+                    combined = binary_hashes[i]
+                digest = hashlib.sha256(combined).digest()
+                new_level.append(digest)
+            binary_hashes = new_level
 
-    def decide_part_size(self, file_size):
-        """
-        Decide Glacier part size
-        Number of parts should be smaller than 10000
-        :param file_size: Size of file to be uploaded
-        :return: Appropriate part size
-        """
-        part_size = self.part_size
-        while file_size / part_size > 10000:
-            part_size *= 2
-        return part_size
-
-    @staticmethod
-    def __get_stats(path):
-        """
-        Get file size and modification time
-        :param path: Path to the file
-        :return: Tuple(file_size, mtime)
-        """
-        try:
-            stat_info = os.stat(path)
-            return stat_info.st_size, stat_info.st_mtime
-        except FileNotFoundError as e:
-            logging.error(f"File not found: {path} - {e}")
-            return 0, 0
-        except OSError as e:
-            logging.error(f"OS error getting stats for {path}: {e}")
-            return 0, 0
+        if binary_hashes:
+            return binascii.hexlify(binary_hashes[0]).decode()
+        return ''

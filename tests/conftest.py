@@ -32,7 +32,11 @@ def mock_args(temp_dir):
             self.desc = "test description"
             self.encrypt = False
             self.encryption_key = None
-            self.src = temp_dir  # Use the temporary directory
+            self.src = temp_dir
+            
+        def decide_part_size(self, file_size):
+            return self.part_size  # Or any other default logic
+
     return Args()
 
 @pytest.fixture(autouse=True)
