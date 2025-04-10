@@ -162,6 +162,14 @@ optional arguments:
   --encrypt true        Encrypt your data before sending it to Glacier
   --encryption-key-file Path to file with encryption key for encrypting uploaded data
 
+  --log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}
+                        Set the logging level (default: INFO). DEBUG: Detailed information, useful for debugging. INFO: General information about the program's execution. WARNING: Indicates
+                        potential issues that are not critical. ERROR: Indicates significant problems that might prevent some functionality. CRITICAL: Indicates severe errors that might
+                        lead to program termination. (default: INFO)
+  --list-incomplete-uploads
+                        List incomplete multipart uploads in the Glacier vault
+  --abort-incomplete-uploads
+                        Abort all incomplete multipart uploads in the Glacier vault (use with caution)
   
 ```
 

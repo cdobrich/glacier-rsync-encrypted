@@ -6,19 +6,12 @@ from src.release import __version__
 
 
 class ArgParser:
+
     def __init__(self):
         self.parser = argparse.ArgumentParser(
             f"grsync version {__version__}",
             description="Rsync like glacier backup util",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter
-        )
-        self.parser.add_argument(
-            "--loglevel",
-            dest="log_level",
-            type=str,
-            choices=list(logging._nameToLevel.keys()),
-            default="INFO",
-            help="log level"
         )
         self.parser.add_argument(
             "--db",
@@ -40,7 +33,7 @@ class ArgParser:
         )
         self.parser.add_argument(
             "--compress",
-            help="Enable compression. Only zstd is supported",
+            help="Enable compression.\nOnly zstd is supported",
             type=self.str2bool,
             default=False
         )
@@ -79,6 +72,7 @@ class ArgParser:
         )
         self.parser.add_argument(
             "--log-level",
+            dest="log_level",  # Ensure the value is stored in 'log_level'
             choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
             default='INFO',
             help="Set the logging level (default: INFO).\n"
@@ -88,12 +82,21 @@ class ArgParser:
                  "ERROR: Indicates significant problems that might prevent some functionality.\n"
                  "CRITICAL: Indicates severe errors that might lead to program termination."
         )
+        self.parser.add_argument(
+            "--list-incomplete-uploads",
+            action="store_true",
+            help="List incomplete multipart uploads in the Glacier vault."
+        )
 
+        self.parser.add_argument(
+            "--abort-incomplete-uploads",
+            action="store_true",
+            help="Abort all incomplete multipart uploads in the Glacier vault (use with caution)."
+        )
 
     def validate_encryption_key(self, key):
         """
-        Validate encryption key format.
-        A valid Fernet key must be 32 bytes, URL-safe base64-encoded.
+        Validate encryption key format. A valid Fernet key must be 32 bytes, URL-safe base64-encoded.
         """
         if not key:
             print("Key cannot be empty")
@@ -137,7 +140,7 @@ class ArgParser:
     def get_args(self):
         """Parse and validate command line arguments"""
         args = self.parser.parse_args()
-        
+
         # Validate encryption options
         if args.encrypt:
             if not (args.encryption_key or args.encryption_key_file):
@@ -149,7 +152,7 @@ class ArgParser:
                 self.parser.error(
                     "Cannot specify both --encryption-key and --encryption-key-file"
                 )
-            
+
             # Get key from file if specified
             if args.encryption_key_file:
                 try:
@@ -157,7 +160,7 @@ class ArgParser:
                         args.encryption_key = f.read().strip()
                 except Exception as e:
                     self.parser.error(f"Could not read encryption key file: {str(e)}")
-            
+
             # Validate the encryption key
             if not self.validate_encryption_key(args.encryption_key):
                 self.parser.error(
@@ -168,7 +171,7 @@ class ArgParser:
                     "3. Key is not url-safe base64-encoded\n"
                     "Use the keygen.py utility to generate a valid key."
                 )
-        
+
         return args
 
     @staticmethod

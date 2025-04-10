@@ -1,4 +1,3 @@
-# In src/__main__.py:
 #!/usr/bin/env python
 
 import logging
@@ -16,7 +15,7 @@ def main():
     args = ArgParser().get_args()
     logging.getLogger(__name__)
     log_level_str = args.log_level.upper()
-    log_level = getattr(logging, log_level_str, logging.INFO) # Explicitly default to INFO
+    log_level = getattr(logging, log_level_str, logging.INFO)  # Explicitly default to INFO
     logging.basicConfig(
         format="%(asctime)s - %(module)s.%(funcName)s:%(lineno)d - %(levelname)s - %(message)s",
         level=log_level)
@@ -41,6 +40,20 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
+    # New: handle listing or aborting incomplete uploads
+    if args.list_incomplete_uploads:
+        backup_util.list_incomplete_uploads()
+        backup_util.close()
+        sys.exit(0)
+
+    if args.abort_incomplete_uploads:
+        uploads = backup_util.list_incomplete_uploads()
+        for upload in uploads:
+            backup_util.abort_multipart_upload(upload["UploadId"])
+        backup_util.close()
+        sys.exit(0)
+
+    # Default: run backup
     backup_util.backup()
 
 
